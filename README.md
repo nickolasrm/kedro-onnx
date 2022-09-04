@@ -3,6 +3,7 @@
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/nickolasrm/kedro-onnx/Build)
 ![Codecov](https://img.shields.io/codecov/c/gh/nickolasrm/kedro-onnx)
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/nickolasrm/kedro-onnx/Release?label=release)
+[![Documentation Status](https://readthedocs.org/projects/kedro-onnx/badge/?version=latest)](https://kedro-onnx.readthedocs.io/en/latest/?badge=latest)
 ![PyPI](https://img.shields.io/pypi/v/kedro-onnx)
 
 ## Introduction
