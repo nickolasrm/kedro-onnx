@@ -1,10 +1,12 @@
 """ONNX datasets."""
+from __future__ import annotations
+from dataclasses import dataclass, field
 import logging
 from abc import abstractmethod
 from copy import deepcopy
 from io import IOBase
 from pathlib import PurePosixPath
-from typing import Any, Dict, get_args
+from typing import Any, Dict, Union, get_args
 
 import fsspec
 from kedro.io.core import (
@@ -12,14 +14,15 @@ from kedro.io.core import (
     get_protocol_and_path
 )
 
-from kedro_onnx.typing import T, OnnxFrameworks, ModelProto
+from kedro_onnx.typing import IT, OT, OnnxFrameworks, ModelProto
+from kedro_onnx.utils import onnx_converters, check_installed
 import onnx
 import onnxmltools
 
 logger = logging.getLogger(__name__)
 
 
-class FsspecDataSet(AbstractVersionedDataSet[T, T]):
+class FsspecDataSet(AbstractVersionedDataSet[IT, OT]):
     """An abstract DataSet for creating a new DataSet using fsspec."""
 
     DEFAULT_LOAD_ARGS: Dict[str, Any] = {}
@@ -56,7 +59,6 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
                 `open_args_save`.
 
         Example:
-            >>> from kedro_onnx.datasets import FsspecDataSet
             >>> class MyDataSet(FsspecDataSet):
             ...     def _load_fp(self, fp: IOBase) -> Any:
             ...         return fp.read()
@@ -64,9 +66,15 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
             ...         fp.write(data)
             >>> path = fs.path('test.txt')
             >>> data_set = MyDataSet(path)
+
+            >>> data_set.exists()
+            False
             >>> data_set.save('abc')
             >>> data_set.load()
             'abc'
+            >>> data_set.exists()
+            True
+            >>> data_set._release()
 
         Note:
             Here you can find all available arguments for `open`:
@@ -98,11 +106,9 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
 
         # Handle default load and save arguments
         self._load_args = deepcopy(self.DEFAULT_LOAD_ARGS)
-        if load_args is not None:
-            self._load_args.update(load_args)
+        self._load_args.update(load_args or {})
         self._save_args = deepcopy(self.DEFAULT_SAVE_ARGS)
-        if save_args is not None:
-            self._save_args.update(save_args)
+        self._save_args.update(save_args or {})
 
         self._fs_open_args_load = _fs_open_args_load
         self._fs_open_args_save = _fs_open_args_save
@@ -117,10 +123,10 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
         )
 
     @abstractmethod
-    def _load_fp(self, fp: IOBase) -> Any:
-        pass
+    def _load_fp(self, fp: IOBase) -> OT:
+        pass  # pragma: no cover
 
-    def _load(self) -> Any:
+    def _load(self) -> OT:
         load_path = get_filepath_str(self._get_load_path(), self._protocol)
 
         with self._fs.open(load_path, **self._fs_open_args_load) as fp:
@@ -128,9 +134,9 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
 
     @abstractmethod
     def _save_fp(self, fp: IOBase, data: Any) -> None:
-        pass
+        pass  # pragma: no cover
 
-    def _save(self, data: T) -> None:
+    def _save(self, data: IT) -> None:
         save_path = get_filepath_str(self._get_save_path(), self._protocol)
 
         with self._fs.open(save_path, **self._fs_open_args_save) as fp:
@@ -141,7 +147,7 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
     def _exists(self) -> bool:
         try:
             load_path = get_filepath_str(self._get_load_path(), self._protocol)
-        except DataSetError:
+        except DataSetError:  # pragma: no cover
             return False
 
         return self._fs.exists(load_path)
@@ -156,8 +162,57 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
         self._fs.invalidate_cache(filepath)
 
 
-class ONNXDataSet(FsspecDataSet):
-    """Loads and saves ONNX models."""
+@dataclass
+class OnnxSaveModel:
+    """Object to store an ONNX model and kwargs for the converter function."""
+
+    model: Any
+    kwargs: dict = field(default_factory=dict)
+
+
+class OnnxDataSet(FsspecDataSet[object, ModelProto]):
+    """Loads and saves ONNX models.
+
+    Attributes:
+        backend (OnnxFrameworks): ONNX backend to use.
+
+    Example:
+        >>> from kedro_onnx.io import OnnxDataSet, OnnxSaveModel
+        >>> from kedro_onnx.io import FloatTensorType
+        >>> from sklearn.linear_model import LinearRegression
+
+        >>> path = fs.path('test.onnx')
+        >>> data_set = OnnxDataSet(path, backend='sklearn')
+
+        >>> model = LinearRegression()
+        >>> model = model.fit([[1], [2], [3]], [2, 4, 6])
+        >>> save_model = OnnxSaveModel(model=model,
+        ...     kwargs={'initial_types': (
+        ...                 ('input', FloatTensorType([None, 1])),)})
+
+        >>> data_set.save(save_model)
+        >>> onnx_model = data_set.load()
+        >>> onnx_model.producer_name
+        'skl2onnx'
+
+        >>> from kedro_onnx.inference import run
+        >>> run(onnx_model, [[4]])
+        array([[8.]], dtype=float32)
+
+        For some backends, you may have to specify additional kwargs:
+
+        In the example above, we used the `sklearn` backend. This backend
+        requires the `initial_types` kwarg to be specified. For more
+        information, see the `skl2onnx` documentation.
+
+        >>> data_set.save(model)# doctest: +ELLIPSIS, +NORMALIZE_WHITESPACE
+        Traceback (most recent call last):
+        ...
+        kedro.io.core.DataSetError: You need to specify `initial_types` for
+         `sklearn` backend.
+        Use the `kedro_onnx.OnnxSaveModel` `kwargs` to specify additional
+         arguments to the conversion function.
+    """
 
     def __init__(
         self,
@@ -168,14 +223,14 @@ class ONNXDataSet(FsspecDataSet):
         credentials: Dict[str, Any] = None,
         fs_args: Dict[str, Any] = None,
     ) -> None:
-        """Initialise OnnxDataSet.
+        """Initialises OnnxDataSet.
 
         Args:
-            filepath (str): Filepath in POSIX format to a ONNX file prefixed with a
-                protocol like `s3://`. If prefix is not provided, `file` protocol
-                (local filesystem) will be used. The prefix should be any protocol
-                supported by `fsspec`. Note: `http(s)` doesn't support
-                versioning.
+            filepath (str): Filepath in POSIX format to a ONNX file prefixed
+                with a protocol like `s3://`. If prefix is not provided, `file`
+                protocol (local filesystem) will be used. The prefix should be
+                any protocol supported by `fsspec`. Note: `http(s)` doesn't
+                support versioning.
             backend (OnnxFrameworks): ONNX backend to use. To see the list of
                 supported backends, look at `kedro_onnx.typing.OnnxFrameworks`.
             load_args (Dict[str, Any], optional): Arguments for the conversion
@@ -207,9 +262,10 @@ class ONNXDataSet(FsspecDataSet):
         self._fs_open_args_load.update({"mode": "rb"})
         self._fs_open_args_save.update({"mode": "wb"})
 
-        assert backend in get_args(OnnxFrameworks),\
+        assert backend in onnx_converters,\
             (f"Backend {backend} is not supported. Supported backends are: "
              f"{get_args(OnnxFrameworks)}")
+        check_installed(onnx_converters[backend])
         self._backend = backend
 
     def _describe(self) -> Dict[str, Any]:
@@ -220,10 +276,30 @@ class ONNXDataSet(FsspecDataSet):
         model.ParseFromString(fp.read())
         return model
 
-    def _convert(self, data: Any) -> ModelProto:
-        convert_fn = getattr(onnxmltools, f"convert_{self._backend}")
-        return convert_fn(data)
+    def _validate_kwarg(self, kwargs: dict, key: str):
+        if key not in kwargs:
+            raise DataSetError(
+                f"You need to specify `{key}` for `{self._backend}` backend.\n"
+                "Use the `kedro_onnx.OnnxSaveModel` `kwargs` to specify "
+                "additional arguments to the conversion function."
+            )
 
-    def _save_fp(self, fp: IOBase, data: Any) -> None:
-        model = self._convert(data)
+    def _validate_sklearn(self, model: Any, kwargs: dict):
+        self._validate_kwarg(kwargs, "initial_types")
+
+    def _validate(self, model: Any, kwargs: dict):
+        if self._backend == "sklearn":
+            self._validate_sklearn(model, kwargs)
+
+    def _convert(self, model: Any, kwargs: Any) -> ModelProto:
+        convert_fn = getattr(onnxmltools, f"convert_{self._backend}")
+        return convert_fn(model, **kwargs)
+
+    def _save_fp(self, fp: IOBase, data: Union[OnnxSaveModel, Any]) -> None:
+        save_model = (
+            data if isinstance(data, OnnxSaveModel) else OnnxSaveModel(data)
+        )
+        full_kwargs = {**self._load_args, **save_model.kwargs}
+        self._validate(save_model.model, full_kwargs)
+        model = self._convert(save_model.model, full_kwargs)
         fp.write(model.SerializeToString())
