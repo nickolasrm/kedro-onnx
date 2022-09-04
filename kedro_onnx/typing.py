@@ -1,9 +1,9 @@
 """Type aliases for Kedro ONNX plugin."""
 from typing_extensions import Literal
-from typing import TypeVar
+from typing import Protocol, TypeVar
 
 
-ONNXFrameworks = Literal[
+OnnxFrameworks = Literal[
     'tensorflow',
     'sklearn',
     'keras',
@@ -17,3 +17,23 @@ ONNXFrameworks = Literal[
 """Literal for supported ONNX frameworks."""
 
 T = TypeVar('T')
+
+
+class ModelProto(Protocol):
+    """Protocol for ONNX model."""
+
+    def ParseFromString(self, s: bytes) -> None:
+        """Parse serialized model.
+
+        Args:
+            s (bytes): Serialized model.
+        """
+        ...  # pragma: no cover
+
+    def SerializeToString(self) -> bytes:
+        """Serialize model.
+
+        Returns:
+            bytes: Serialized model.
+        """
+        ...  # pragma: no cover
