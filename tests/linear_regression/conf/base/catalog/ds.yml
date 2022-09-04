@@ -1,0 +1,20 @@
+x:
+  filepath: data/01_raw/x.json
+  type: json.JSONDataSet
+
+y:
+  filepath: data/01_raw/y.json
+  type: json.JSONDataSet
+
+x_test:
+  filepath: data/05_model_input/x_test.json
+  type: json.JSONDataSet
+
+regressor:
+  type: kedro_onnx.io.OnnxDataSet
+  filepath: data/06_models/reg.onnx
+  backend: sklearn
+
+predictions:
+  filepath: data/07_model_output/predictions.json
+  type: json.JSONDataSet

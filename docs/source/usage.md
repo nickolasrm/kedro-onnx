@@ -37,21 +37,21 @@ Because `sklearn` models don't have a standard interface for defining inputs, th
 ```python
 # src/pipelines/data_science/nodes.py
 from sklearn.linear_model import LinearRegression
-from kedro_onnx.io import OnnxSaveModel, Float64TensorType
+from kedro_onnx.io import OnnxSaveModel, FloatTensorType
 
 def create_model(x, y):
     model = LinearRegression()
     model.fit(x, y)
-    return SaveModel(
+    return OnnxSaveModel(
         model=model,
         kwargs={
             'initial_types':
-                (('input', Float64TensorType([None, 1])),)
+                (('input', FloatTensorType([None, 1])),)
         }
     )
 ```
 
-Instead of returning the raw model, you can use the `OnnxSaveModel` class to pass arguments to the `ONNXMLTools` [conversion functions](https://github.com/onnx/onnxmltools/blob/main/onnxmltools/__init__.py). In this case, we are passing the `initial_types` argument as a tuple of tuples in which the first element is the name of the input (to be referenced by the inference function) and the second element is the type of the input (in this case, a `Float64TensorType` with shape `[None, 1]`
+Instead of returning the raw model, you can use the `OnnxSaveModel` class to pass arguments to the `ONNXMLTools` [conversion functions](https://github.com/onnx/onnxmltools/blob/main/onnxmltools/__init__.py). In this case, we are passing the `initial_types` argument as a tuple of tuples in which the first element is the name of the input (to be referenced by the inference function) and the second element is the type of the input (in this case, a `FloatTensorType` with shape `[None, 1]`
 You can check all the available `TensorType`s in `kedro_onnx.io`
 
 ```{note}
