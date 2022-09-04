@@ -55,3 +55,4 @@ MANIFEST
 junit
 htmlcov
 .mypy_cache
+docs/build/*

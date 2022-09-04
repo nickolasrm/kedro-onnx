@@ -180,21 +180,21 @@ class OnnxDataSet(FsspecDataSet[object, ModelProto]):
         >>> from kedro_onnx.io import OnnxDataSet, OnnxSaveModel
         >>> from kedro_onnx.io import FloatTensorType
         >>> from sklearn.linear_model import LinearRegression
-
+        >>>
         >>> path = fs.path('test.onnx')
         >>> data_set = OnnxDataSet(path, backend='sklearn')
-
+        >>>
         >>> model = LinearRegression()
         >>> model = model.fit([[1], [2], [3]], [2, 4, 6])
+        >>>
         >>> save_model = OnnxSaveModel(model=model,
         ...     kwargs={'initial_types': (
         ...                 ('input', FloatTensorType([None, 1])),)})
-
         >>> data_set.save(save_model)
         >>> onnx_model = data_set.load()
         >>> onnx_model.producer_name
         'skl2onnx'
-
+        >>>
         >>> from kedro_onnx.inference import run
         >>> run(onnx_model, [[4]])
         array([[8.]], dtype=float32)
