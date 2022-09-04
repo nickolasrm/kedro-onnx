@@ -32,7 +32,7 @@ The `create_model` function is a function that creates a `LinearRegression` mode
 
 ##### But how does ONNX know what to expect?
 
-Because Sklearn models doesn't have a standard interface for defining inputs, the model can't be converted to the `.onnx` format without telling how to feed the model. For that, `OnnxConverterCommon` provides interfaces for defining these inputs. Let's modify the code above a bit:
+Because `sklearn` models don't have a standard interface for defining inputs, the model can't be converted to the `.onnx` format without telling how to feed the it. For that, `OnnxConverterCommon` provides interfaces for defining these inputs. Let's modify the code above a bit:
 
 ```python
 # src/pipelines/data_science/nodes.py
@@ -68,7 +68,7 @@ regressor:
   backend: sklearn
 ```
 
-The `regressor` dataset is a `OnnxDataSet` that will be used to save the model in the `ONNX` format. The `backend` parameter is the framework that will be used to convert the model to `ONNX`. In this case, we are using `sklearn`. You can check all the available backends in the below:
+The `regressor` dataset is an `OnnxDataSet` that will be used to save the model in the `ONNX` format. The `backend` parameter is the framework used to build the model. In this case, we are using `sklearn`. You can check all the available backends in the section below:
 
 ```{eval-rst}
 .. autodata:: kedro_onnx.typing.OnnxFrameworks
