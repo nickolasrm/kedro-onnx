@@ -212,12 +212,20 @@ class OnnxDataSet(FsspecDataSet[object, ModelProto]):
          `sklearn` backend.
         Use the `kedro_onnx.OnnxSaveModel` `kwargs` to specify additional
          arguments to the conversion function.
+
+        You can even use the bare onnx model as the backend:
+
+        >>> data_set = OnnxDataSet(path, backend='onnx')
+        >>> data_set.save(onnx_model)  # already an onnx model
+        >>> onnx_model = data_set.load()
+        >>> onnx_model.producer_name
+        'skl2onnx'
     """
 
     def __init__(
         self,
         filepath: str,
-        backend: OnnxFrameworks,
+        backend: OnnxFrameworks = 'onnx',
         load_args: Dict[str, Any] = None,
         version: Version = None,
         credentials: Dict[str, Any] = None,
@@ -233,6 +241,7 @@ class OnnxDataSet(FsspecDataSet[object, ModelProto]):
                 support versioning.
             backend (OnnxFrameworks): ONNX backend to use. To see the list of
                 supported backends, look at `kedro_onnx.typing.OnnxFrameworks`.
+                Defaults to `onnx`.
             load_args (Dict[str, Any], optional): Arguments for the conversion
                 function from `onnxmltools`. Defaults to None.
             version (Version, optional): If specified, should be an instance of
@@ -262,10 +271,11 @@ class OnnxDataSet(FsspecDataSet[object, ModelProto]):
         self._fs_open_args_load.update({"mode": "rb"})
         self._fs_open_args_save.update({"mode": "wb"})
 
-        assert backend in utils.onnx_converters,\
-            (f"Backend {backend} is not supported. Supported backends are: "
-             f"{get_args(OnnxFrameworks)}")
-        utils.check_installed(utils.onnx_converters[backend])
+        if backend != 'onnx':
+            assert backend in utils.onnx_converters,\
+                (f"Backend {backend} is not supported. Supported backends are:"
+                 f" {get_args(OnnxFrameworks)}")
+            utils.check_installed(utils.onnx_converters[backend])
         self._backend = backend
 
     def _describe(self) -> Dict[str, Any]:
@@ -311,11 +321,19 @@ class OnnxDataSet(FsspecDataSet[object, ModelProto]):
         convert_fn = getattr(onnxmltools, f"convert_{self._backend}")
         return convert_fn(model, **kwargs)
 
-    def _save_fp(self, fp: IOBase, data: Union[OnnxSaveModel, Any]) -> None:
-        save_model = (
-            data if isinstance(data, OnnxSaveModel) else OnnxSaveModel(data)
-        )
-        full_kwargs = {**self._load_args, **save_model.kwargs}
-        self._validate(save_model.model, full_kwargs)
-        model = self._convert(save_model.model, full_kwargs)
+    def _save_fp(
+        self,
+        fp: IOBase,
+        data: Union[OnnxSaveModel, onnx.ModelProto, Any]
+    ) -> None:
+        if isinstance(data, onnx.ModelProto):
+            model = data
+        else:
+            save_model = (
+                data if isinstance(data, OnnxSaveModel)
+                else OnnxSaveModel(data)
+            )
+            full_kwargs = {**self._load_args, **save_model.kwargs}
+            self._validate(save_model.model, full_kwargs)
+            model = self._convert(save_model.model, full_kwargs)
         fp.write(model.SerializeToString())

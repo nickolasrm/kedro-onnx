@@ -14,6 +14,7 @@ OnnxFrameworks = Literal[
     'lightgbm',
     'catboost',
     'h2o',
+    'onnx',
 ]
 """Literal for supported ONNX frameworks."""
 

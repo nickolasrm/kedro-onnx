@@ -12,6 +12,7 @@ onnx_converters = {
     'sparkml': 'pyspark',
     'xgboost': 'xgboost',
     'h2o': 'h2o',
+    'onnx': 'onnx',
 }
 
 
