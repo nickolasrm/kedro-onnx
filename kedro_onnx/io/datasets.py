@@ -15,7 +15,7 @@ from kedro.io.core import (
 )
 
 from kedro_onnx.typing import IT, OT, OnnxFrameworks, ModelProto
-from kedro_onnx.utils import onnx_converters, check_installed
+import kedro_onnx.utils as utils
 import onnx
 import onnxmltools
 
@@ -262,10 +262,10 @@ class OnnxDataSet(FsspecDataSet[object, ModelProto]):
         self._fs_open_args_load.update({"mode": "rb"})
         self._fs_open_args_save.update({"mode": "wb"})
 
-        assert backend in onnx_converters,\
+        assert backend in utils.onnx_converters,\
             (f"Backend {backend} is not supported. Supported backends are: "
              f"{get_args(OnnxFrameworks)}")
-        check_installed(onnx_converters[backend])
+        utils.check_installed(utils.onnx_converters[backend])
         self._backend = backend
 
     def _describe(self) -> Dict[str, Any]:
@@ -287,9 +287,25 @@ class OnnxDataSet(FsspecDataSet[object, ModelProto]):
     def _validate_sklearn(self, model: Any, kwargs: dict):
         self._validate_kwarg(kwargs, "initial_types")
 
+    def _validate_lightbgm(self, model: Any, kwargs: dict):
+        self._validate_kwarg(kwargs, "initial_types")
+
+    def _validate_sparkml(self, model: Any, kwargs: dict):
+        self._validate_kwarg(kwargs, "initial_types")
+        self._validate_kwarg(kwargs, "spark_session")
+
+    def _validate_xgboost(self, model: Any, kwargs: dict):
+        self._validate_kwarg(kwargs, "initial_types")
+
     def _validate(self, model: Any, kwargs: dict):
         if self._backend == "sklearn":
             self._validate_sklearn(model, kwargs)
+        elif self._backend == "lightgbm":
+            self._validate_lightbgm(model, kwargs)
+        elif self._backend == "sparkml":
+            self._validate_sparkml(model, kwargs)
+        elif self._backend == "xgboost":
+            self._validate_xgboost(model, kwargs)
 
     def _convert(self, model: Any, kwargs: Any) -> ModelProto:
         convert_fn = getattr(onnxmltools, f"convert_{self._backend}")

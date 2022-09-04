@@ -5,8 +5,8 @@ from functools import lru_cache
 onnx_converters = {
     'sklearn': 'skl2onnx',
     'tensorflow': 'tf2onnx',
+    'keras': 'tf2onnx',
     'coreml': 'coremltools',
-    'libsvm': 'libsvm',
     'catboost': 'catboost',
     'lightgbm': 'lightgbm',
     'sparkml': 'pyspark',
