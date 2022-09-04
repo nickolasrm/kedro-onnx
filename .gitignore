@@ -34,7 +34,6 @@ htmlcov/*
 .coverage
 .coverage.*
 .tox
-junit*.xml
 coverage.xml
 .pytest_cache/
 
@@ -52,3 +51,7 @@ MANIFEST
 .venv*/
 .conda*/
 .python-version
+
+junit
+htmlcov
+.mypy_cache

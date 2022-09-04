@@ -55,6 +55,19 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
                 `open` method through nested keys `open_args_load` and
                 `open_args_save`.
 
+        Example:
+            >>> from kedro_onnx.datasets import FsspecDataSet
+            >>> class MyDataSet(FsspecDataSet):
+            ...     def _load_fp(self, fp: IOBase) -> Any:
+            ...         return fp.read()
+            ...     def _save_fp(self, fp: IOBase, data: Any) -> None:
+            ...         fp.write(data)
+            >>> path = fs.path('test.txt')
+            >>> data_set = MyDataSet(path)
+            >>> data_set.save('abc')
+            >>> data_set.load()
+            'abc'
+
         Note:
             Here you can find all available arguments for `open`:
 
@@ -68,6 +81,8 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
         protocol, path = get_protocol_and_path(filepath, version)
         if protocol == "file":
             _fs_args.setdefault("auto_mkdir", True)
+            _fs_open_args_load.setdefault("mode", "r")
+            _fs_open_args_save.setdefault("mode", "w")
 
         self._protocol = protocol
         self._fs: fsspec.AbstractFileSystem = fsspec.filesystem(
@@ -109,7 +124,7 @@ class FsspecDataSet(AbstractVersionedDataSet[T, T]):
         load_path = get_filepath_str(self._get_load_path(), self._protocol)
 
         with self._fs.open(load_path, **self._fs_open_args_load) as fp:
-            self._load_fp(fp)
+            return self._load_fp(fp)
 
     @abstractmethod
     def _save_fp(self, fp: IOBase, data: Any) -> None:
